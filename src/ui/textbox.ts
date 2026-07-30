@@ -1,5 +1,5 @@
 import { addCmd, removeCmd, updateCmd } from '../history';
-import { newId, type Point, type TextBox } from '../types';
+import { LINE_HEIGHT_FACTOR, newId, type Point, type TextBox } from '../types';
 import type { AppCtx } from './pageView';
 
 export function autosize(el: HTMLTextAreaElement): void {
@@ -164,11 +164,14 @@ export function mountTextBox(ctx: AppCtx, layer: HTMLElement, t: TextBox): HTMLT
 /**
  * A draft textbox lives only in the DOM; it joins the store (as a single
  * undoable add) on blur when non-empty, and evaporates when left empty.
+ * `at` is the click point, anchored at the vertical center of the first
+ * line — not the box's top-left corner.
  */
 export function startDraftTextBox(ctx: AppCtx, layer: HTMLElement, page: number, at: Point): void {
   const el = baseTextarea();
   el.classList.add('editing', 'draft');
   const { zoom, color, fontSize } = ctx.state;
+  at = { x: at.x, y: at.y - (LINE_HEIGHT_FACTOR * fontSize) / 2 };
   el.style.left = `${at.x * zoom}px`;
   el.style.top = `${at.y * zoom}px`;
   el.style.fontSize = `${fontSize * zoom}px`;
