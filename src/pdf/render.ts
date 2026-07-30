@@ -19,6 +19,8 @@ export interface PageInfo {
 export interface LoadedPdf {
   doc: PDFDocumentProxy;
   pages: PageInfo[];
+  /** Frees the worker resources for this document. */
+  destroy(): void;
 }
 
 /**
@@ -27,7 +29,8 @@ export interface LoadedPdf {
  * must stay usable for the pdf-lib save path.
  */
 export async function loadPdf(bytes: Uint8Array): Promise<LoadedPdf> {
-  const doc = await pdfjs.getDocument({ data: bytes.slice() }).promise;
+  const task = pdfjs.getDocument({ data: bytes.slice() });
+  const doc = await task.promise;
   const pages: PageInfo[] = [];
   for (let i = 1; i <= doc.numPages; i++) {
     const page = await doc.getPage(i);
@@ -41,7 +44,7 @@ export async function loadPdf(bytes: Uint8Array): Promise<LoadedPdf> {
       page,
     });
   }
-  return { doc, pages };
+  return { doc, pages, destroy: () => void task.destroy() };
 }
 
 export interface RenderHandle {
