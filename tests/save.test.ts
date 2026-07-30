@@ -34,6 +34,18 @@ function sampleAnnotations(): Annotation[] {
       width: 4,
     },
     {
+      id: 'h1',
+      kind: 'stroke',
+      page: 0,
+      points: [
+        { x: 70, y: 300 },
+        { x: 250, y: 300 },
+      ],
+      color: '#ffe600',
+      width: 12,
+      opacity: 0.4,
+    },
+    {
       id: 't1',
       kind: 'text',
       page: 0,

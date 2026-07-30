@@ -1,5 +1,5 @@
 import fontkit from '@pdf-lib/fontkit';
-import { LineCapStyle, PDFDocument, degrees, rgb } from 'pdf-lib';
+import { BlendMode, LineCapStyle, PDFDocument, degrees, rgb } from 'pdf-lib';
 import { applyTransform, invertTransform, type Matrix, type Rotation } from '../coords';
 import { strokePathD } from '../geometry';
 import { LINE_HEIGHT_FACTOR, type Annotation, type Stroke, type TextBox } from '../types';
@@ -89,13 +89,15 @@ function drawStroke(page: PdfPage, stroke: Stroke, inv: Matrix): void {
     return { x: u.x, y: -u.y };
   });
   const { r, g, b } = hexToRgb01(stroke.color);
+  const highlight = stroke.opacity !== undefined && stroke.opacity < 1;
   page.drawSvgPath(strokePathD(mapped), {
     x: 0,
     y: 0,
     borderColor: rgb(r, g, b),
     borderWidth: stroke.width,
     borderLineCap: LineCapStyle.Round,
-    borderOpacity: 1,
+    borderOpacity: stroke.opacity ?? 1,
+    ...(highlight ? { blendMode: BlendMode.Multiply } : {}),
   });
 }
 
