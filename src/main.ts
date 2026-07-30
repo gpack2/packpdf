@@ -175,7 +175,10 @@ class App {
       (e) => {
         if (!e.ctrlKey && !e.metaKey) return;
         e.preventDefault();
-        this.setZoom(this.state.zoom * (e.deltaY < 0 ? 1.1 : 1 / 1.1));
+        this.setZoom(this.state.zoom * (e.deltaY < 0 ? 1.1 : 1 / 1.1), {
+          x: e.clientX,
+          y: e.clientY,
+        });
       },
       { passive: false },
     );
@@ -253,11 +256,50 @@ class App {
     return Math.min(1.5, Math.max(ZOOM_MIN, fit));
   }
 
-  private setZoom(z: number): void {
+  /**
+   * Changes zoom while keeping the document point under `anchor` (a client
+   * position — the cursor for wheel zoom) fixed on screen. Without an anchor
+   * the viewport center is pinned instead.
+   */
+  private setZoom(z: number, anchor?: { x: number; y: number }): void {
     const zoom = Math.min(ZOOM_MAX, Math.max(ZOOM_MIN, z));
-    if (zoom === this.state.zoom) return;
+    const prev = this.state.zoom;
+    if (zoom === prev) return;
+
+    let pin: { pv: PageView; px: number; py: number; ax: number; ay: number } | null = null;
+    if (this.pageViews.length > 0) {
+      const box = this.scroller.getBoundingClientRect();
+      const ax = anchor?.x ?? box.left + this.scroller.clientWidth / 2;
+      const ay = anchor?.y ?? box.top + this.scroller.clientHeight / 2;
+      // Pin the page under the anchor (or the vertically nearest one); the
+      // fixed padding/gaps between pages don't scale, so scroll math has to
+      // be page-relative rather than a plain proportional scale.
+      let best: PageView | null = null;
+      let bestDist = Infinity;
+      for (const pv of this.pageViews) {
+        const r = pv.el.getBoundingClientRect();
+        const dist = ay < r.top ? r.top - ay : ay > r.bottom ? ay - r.bottom : 0;
+        if (dist < bestDist) {
+          bestDist = dist;
+          best = pv;
+        }
+        if (dist === 0) break;
+      }
+      if (best) {
+        const r = best.el.getBoundingClientRect();
+        pin = { pv: best, px: (ax - r.left) / prev, py: (ay - r.top) / prev, ax, ay };
+      }
+    }
+
     this.state.zoom = zoom;
     for (const pv of this.pageViews) pv.applyZoom();
+
+    if (pin) {
+      const r = pin.pv.el.getBoundingClientRect();
+      this.scroller.scrollLeft += r.left + pin.px * zoom - pin.ax;
+      this.scroller.scrollTop += r.top + pin.py * zoom - pin.ay;
+    }
+
     this.syncToolbar();
     clearTimeout(this.zoomTimer);
     this.zoomTimer = window.setTimeout(() => {
