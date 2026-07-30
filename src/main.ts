@@ -18,6 +18,7 @@ class App {
   private state: AppState = {
     tool: 'select',
     color: '#e0322b',
+    highlightColor: '#ffe600',
     penWidth: 2,
     fontSize: 14,
     zoom: 1,
@@ -56,6 +57,10 @@ class App {
       onColor: (c) => {
         this.state.color = c;
         this.restyleSelection({ color: c });
+        this.syncToolbar();
+      },
+      onHighlightColor: (c) => {
+        this.state.highlightColor = c;
         this.syncToolbar();
       },
       onPenWidth: (w) => {
@@ -164,7 +169,13 @@ class App {
         return;
       }
       if (!mod) {
-        const tools: Record<string, Tool> = { v: 'select', p: 'pen', t: 'text', e: 'eraser' };
+        const tools: Record<string, Tool> = {
+          v: 'select',
+          p: 'pen',
+          h: 'highlight',
+          t: 'text',
+          e: 'eraser',
+        };
         const t = tools[key];
         if (t) this.setTool(t);
       }

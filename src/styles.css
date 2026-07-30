@@ -97,7 +97,8 @@ body { font-family: system-ui, -apple-system, sans-serif; background: #e4e4ea; o
 .page svg path { pointer-events: none; }
 .pages[data-tool='select'] .page svg path[data-id] { pointer-events: stroke; cursor: pointer; }
 
-.pages[data-tool='pen'] .page { cursor: crosshair; }
+.pages[data-tool='pen'] .page,
+.pages[data-tool='highlight'] .page { cursor: crosshair; }
 .pages[data-tool='text'] .page { cursor: text; }
 .pages[data-tool='eraser'] .page {
   cursor: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="17" height="17"><circle cx="8" cy="8" r="7" fill="rgba(255,255,255,0.6)" stroke="black" stroke-width="1.5"/></svg>') 8 8, auto;
@@ -105,7 +106,8 @@ body { font-family: system-ui, -apple-system, sans-serif; background: #e4e4ea; o
 
 /* ---------- textboxes ---------- */
 
-.pages[data-tool='pen'] .textbox { pointer-events: none; }
+.pages[data-tool='pen'] .textbox,
+.pages[data-tool='highlight'] .textbox { pointer-events: none; }
 
 .textbox {
   position: absolute; background: transparent; border: none; resize: none;

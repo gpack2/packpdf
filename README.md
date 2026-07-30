@@ -14,7 +14,7 @@ npm run dev     # open the printed localhost URL
 Open a PDF (button or drag-drop), annotate, hit **Save** to download
 `<name>-annotated.pdf`.
 
-Tools: **V** select · **P** pen · **T** text · **E** eraser ·
+Tools: **V** select · **P** pen · **H** highlighter · **T** text · **E** eraser ·
 Ctrl/Cmd+Z undo · Ctrl/Cmd+Shift+Z redo · Ctrl/Cmd+S save · Ctrl/Cmd+scroll zoom.
 
 ## Development

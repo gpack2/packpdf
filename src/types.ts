@@ -1,4 +1,8 @@
-export type Tool = 'select' | 'pen' | 'text' | 'eraser';
+export type Tool = 'select' | 'pen' | 'highlight' | 'text' | 'eraser';
+
+/** Highlighter strokes have a fixed width and opacity (marker look). */
+export const HIGHLIGHT_WIDTH = 12;
+export const HIGHLIGHT_OPACITY = 0.4;
 
 export interface Point {
   x: number;
@@ -13,6 +17,8 @@ export interface Stroke {
   points: Point[];
   color: string;
   width: number;
+  /** < 1 marks a highlighter stroke, drawn with multiply blending. */
+  opacity?: number;
 }
 
 /** Textbox anchored at its top-left corner, scale-1 viewport coordinates. */

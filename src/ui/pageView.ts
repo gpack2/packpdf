@@ -2,12 +2,20 @@ import { eraserHits, strokePathD, thinPoints } from '../geometry';
 import { addCmd, removeCmd, type History } from '../history';
 import { renderPage, type PageInfo, type RenderHandle } from '../pdf/render';
 import type { AnnotationStore } from '../store';
-import { newId, type Point, type TextBox, type Tool } from '../types';
+import {
+  HIGHLIGHT_OPACITY,
+  HIGHLIGHT_WIDTH,
+  newId,
+  type Point,
+  type TextBox,
+  type Tool,
+} from '../types';
 import { mountTextBox, startDraftTextBox, updateTextBoxEl } from './textbox';
 
 export interface AppState {
   tool: Tool;
   color: string;
+  highlightColor: string;
   penWidth: number;
   fontSize: number;
   zoom: number;
@@ -117,6 +125,10 @@ export class PageView {
       path.setAttribute('stroke-width', String(a.width));
       path.setAttribute('stroke-linecap', 'round');
       path.setAttribute('stroke-linejoin', 'round');
+      if (a.opacity !== undefined && a.opacity < 1) {
+        path.setAttribute('stroke-opacity', String(a.opacity));
+        path.style.mixBlendMode = 'multiply';
+      }
       this.svg.insertBefore(path, live);
     }
 
@@ -151,6 +163,7 @@ export class PageView {
     if ((e.target as Element).closest?.('.textbox')) return;
     switch (this.ctx.state.tool) {
       case 'pen':
+      case 'highlight':
         this.startStroke(e);
         break;
       case 'eraser':
@@ -193,15 +206,22 @@ export class PageView {
     e.preventDefault();
     const rect = this.el.getBoundingClientRect();
     const raw: Point[] = [this.toPagePoint(e, rect)];
-    const { color, penWidth } = this.ctx.state;
+    const highlight = this.ctx.state.tool === 'highlight';
+    const color = highlight ? this.ctx.state.highlightColor : this.ctx.state.color;
+    const width = highlight ? HIGHLIGHT_WIDTH : this.ctx.state.penWidth;
+    const opacity = highlight ? HIGHLIGHT_OPACITY : undefined;
 
     const path = document.createElementNS(SVG_NS, 'path');
     path.setAttribute('class', 'live');
     path.setAttribute('fill', 'none');
     path.setAttribute('stroke', color);
-    path.setAttribute('stroke-width', String(penWidth));
+    path.setAttribute('stroke-width', String(width));
     path.setAttribute('stroke-linecap', 'round');
     path.setAttribute('stroke-linejoin', 'round');
+    if (opacity !== undefined) {
+      path.setAttribute('stroke-opacity', String(opacity));
+      path.style.mixBlendMode = 'multiply';
+    }
     path.setAttribute('d', strokePathD(raw));
     this.svg.append(path);
 
@@ -228,7 +248,8 @@ export class PageView {
             page: this.info.index,
             points: thinPoints(raw, 1.5),
             color,
-            width: penWidth,
+            width,
+            ...(opacity !== undefined ? { opacity } : {}),
           }),
         );
       },
