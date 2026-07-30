@@ -66,7 +66,7 @@ export function mountTextBox(ctx: AppCtx, layer: HTMLElement, t: TextBox): HTMLT
     el.setSelectionRange(el.value.length, el.value.length);
   };
 
-  const startDrag = (e: PointerEvent): void => {
+  const startDrag = (e: PointerEvent, onClickInstead?: () => void): void => {
     const cur = current();
     if (!cur) return;
     const zoom = ctx.state.zoom;
@@ -87,7 +87,10 @@ export function mountTextBox(ctx: AppCtx, layer: HTMLElement, t: TextBox): HTMLT
     };
     const onUp = (ev: PointerEvent) => {
       cleanup();
-      if (!moved) return;
+      if (!moved) {
+        onClickInstead?.();
+        return;
+      }
       ctx.history.exec(
         updateCmd(ctx.store, cur, {
           ...cur,
@@ -118,8 +121,9 @@ export function mountTextBox(ctx: AppCtx, layer: HTMLElement, t: TextBox): HTMLT
     if (tool === 'text') {
       e.stopPropagation();
       if (el.readOnly) {
+        // Drag moves the box; a motionless click opens it for editing.
         e.preventDefault();
-        beginEdit();
+        startDrag(e, beginEdit);
       }
       return;
     }
