@@ -113,7 +113,8 @@ body { font-family: system-ui, -apple-system, sans-serif; background: #e4e4ea; o
   font-family: 'PackPDF Sans', sans-serif; line-height: 1.3; white-space: pre;
   outline: 1px dashed transparent; outline-offset: 2px; min-width: 4px;
 }
-.pages[data-tool='select'] .textbox:not(.editing) { cursor: move; }
+.pages[data-tool='select'] .textbox:not(.editing),
+.pages[data-tool='text'] .textbox:not(.editing) { cursor: move; }
 .pages[data-tool='select'] .textbox:hover:not(.editing),
 .pages[data-tool='text'] .textbox:hover:not(.editing) { outline-color: rgba(37, 99, 235, 0.55); }
 .textbox.selected { outline: 1.5px dashed var(--accent); }
