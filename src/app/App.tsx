@@ -1,0 +1,238 @@
+import { useEffect, useRef, useState } from 'react';
+import fontUrl from '../assets/NotoSans-Regular.ttf?url';
+import {
+  confirmDiscard,
+  guardWindowClose,
+  inDesktop,
+  onOsFileOpen,
+  saveWithDialog,
+} from '../desktop';
+import { removeCmd } from '../history';
+import { loadPdf } from '../pdf/render';
+import { savePdf, type PageGeom } from '../pdf/save';
+import type { Tool } from '../types';
+import { Scroller } from './Scroller';
+import { setTool, Toolbar } from './Toolbar';
+import {
+  history,
+  select,
+  session,
+  showBanner,
+  store,
+  uiState,
+  useSession,
+  useUiState,
+  viewApi,
+} from './state';
+
+let fontBytes: Uint8Array | null = null;
+
+async function openFile(file: File, bumpDocSeq: () => void): Promise<void> {
+  if (
+    session.get().dirty &&
+    store.count > 0 &&
+    !(await confirmDiscard('Discard the annotations on the current PDF?'))
+  ) {
+    return;
+  }
+  let bytes: Uint8Array;
+  let loaded;
+  try {
+    bytes = new Uint8Array(await file.arrayBuffer());
+    loaded = await loadPdf(bytes);
+  } catch (err) {
+    const name = (err as Error | undefined)?.name;
+    showBanner(
+      name === 'PasswordException'
+        ? 'This PDF is password-protected — unlock it first, then open it here.'
+        : `Couldn't open “${file.name}” as a PDF.`,
+    );
+    return;
+  }
+
+  session.get().loaded?.destroy();
+  store.clear();
+  history.clear();
+  bumpDocSeq();
+  select(null);
+  uiState.patch({ banner: null });
+  session.patch({
+    loaded,
+    originalBytes: bytes,
+    baseName: file.name.replace(/\.pdf$/i, '') || 'document',
+    dirty: false,
+  });
+  uiState.patch({ zoom: viewApi.fitZoom() });
+}
+
+async function save(): Promise<void> {
+  const { loaded, originalBytes, baseName } = session.get();
+  if (!loaded || !originalBytes) return;
+  try {
+    if (!fontBytes) {
+      const res = await fetch(fontUrl);
+      if (!res.ok) throw new Error(`font fetch failed: ${res.status}`);
+      fontBytes = new Uint8Array(await res.arrayBuffer());
+    }
+    const pageGeoms: PageGeom[] = loaded.pages.map((p) => ({
+      transform: p.transform,
+      rotation: p.rotation,
+    }));
+    const out = await savePdf({
+      originalBytes,
+      fontBytes,
+      annotations: store.all(),
+      pageGeoms,
+    });
+    if (inDesktop) {
+      const saved = await saveWithDialog(out, `${baseName}-annotated.pdf`);
+      if (!saved) return; // user cancelled the dialog
+    } else {
+      const blob = new Blob([out.slice().buffer as ArrayBuffer], { type: 'application/pdf' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `${baseName}-annotated.pdf`;
+      a.click();
+      setTimeout(() => URL.revokeObjectURL(url), 10_000);
+    }
+    session.patch({ dirty: false });
+  } catch {
+    showBanner('Saving failed — your annotations are still here. Try again.');
+  }
+}
+
+function deleteSelection(): void {
+  const id = uiState.get().selectedId;
+  if (!id) return;
+  const a = store.get(id);
+  if (a) history.exec(removeCmd(store, a));
+  select(null);
+}
+
+export function App() {
+  const { banner } = useUiState();
+  const { loaded } = useSession();
+  const [docSeq, setDocSeq] = useState(0);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const open = (f: File) => void openFile(f, () => setDocSeq((n) => n + 1));
+
+  useEffect(() => {
+    const onKeyDown = (e: KeyboardEvent) => {
+      const target = e.target as HTMLElement | null;
+      const inField =
+        target instanceof HTMLTextAreaElement || target instanceof HTMLInputElement;
+      const mod = e.metaKey || e.ctrlKey;
+      const key = e.key.toLowerCase();
+      if (mod && key === 's') {
+        e.preventDefault();
+        void save();
+        return;
+      }
+      if (mod && key === 'o') {
+        e.preventDefault();
+        fileInputRef.current?.click();
+        return;
+      }
+      if (inField) return; // native undo/caret behavior while editing
+      if (mod && key === 'z') {
+        e.preventDefault();
+        if (e.shiftKey) history.redo();
+        else history.undo();
+        return;
+      }
+      if (mod && key === 'y') {
+        e.preventDefault();
+        history.redo();
+        return;
+      }
+      if (e.key === 'Delete' || e.key === 'Backspace') {
+        e.preventDefault();
+        deleteSelection();
+        return;
+      }
+      if (e.key === 'Escape') {
+        select(null);
+        return;
+      }
+      if (!mod) {
+        const tools: Record<string, Tool> = {
+          v: 'select',
+          p: 'pen',
+          h: 'highlight',
+          t: 'text',
+          e: 'eraser',
+        };
+        const t = tools[key];
+        if (t) setTool(t);
+      }
+    };
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, []);
+
+  useEffect(() => {
+    const onDragOver = (e: DragEvent) => {
+      e.preventDefault();
+      document.body.classList.add('dragging');
+    };
+    const onDragLeave = (e: DragEvent) => {
+      if (!e.relatedTarget) document.body.classList.remove('dragging');
+    };
+    const onDrop = (e: DragEvent) => {
+      e.preventDefault();
+      document.body.classList.remove('dragging');
+      const f = e.dataTransfer?.files?.[0];
+      if (f && (f.type === 'application/pdf' || /\.pdf$/i.test(f.name))) open(f);
+    };
+    const onBeforeUnload = (e: BeforeUnloadEvent) => {
+      if (session.get().dirty && store.count > 0) e.preventDefault();
+    };
+    window.addEventListener('dragover', onDragOver);
+    window.addEventListener('dragleave', onDragLeave);
+    window.addEventListener('drop', onDrop);
+    window.addEventListener('beforeunload', onBeforeUnload);
+    return () => {
+      window.removeEventListener('dragover', onDragOver);
+      window.removeEventListener('dragleave', onDragLeave);
+      window.removeEventListener('drop', onDrop);
+      window.removeEventListener('beforeunload', onBeforeUnload);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  useEffect(() => {
+    onOsFileOpen((f) => open(f));
+    guardWindowClose(() => session.get().dirty && store.count > 0);
+    document.fonts?.load('16px "PackPDF Sans"').catch(() => {});
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  return (
+    <>
+      <Toolbar onOpen={() => fileInputRef.current?.click()} onSave={() => void save()} />
+      <div className={`banner${banner ? '' : ' hidden'}`}>
+        <span>{banner}</span>
+        <button title="Dismiss" onClick={() => uiState.patch({ banner: null })}>
+          ✕
+        </button>
+      </div>
+      <Scroller
+        loaded={loaded}
+        docSeq={docSeq}
+        onOpenClick={() => fileInputRef.current?.click()}
+      />
+      <input
+        ref={fileInputRef}
+        type="file"
+        accept="application/pdf,.pdf"
+        className="hidden"
+        onChange={(e) => {
+          const f = e.target.files?.[0];
+          e.target.value = '';
+          if (f) open(f);
+        }}
+      />
+    </>
+  );
+}
