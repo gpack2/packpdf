@@ -1,8 +1,9 @@
 # PackPDF
 
 A fast, client-side PDF annotation editor for schoolwork: open a PDF, add
-textboxes and freehand ink anywhere, then save an annotated copy. No server,
-no storage — everything stays in your browser.
+textboxes, freehand ink, syntax-highlighted code blocks, LaTeX math, and
+Excalidraw diagrams anywhere, then save an annotated copy. No server, no
+storage — everything stays in your browser. Built with React 19.
 
 ## Usage
 
@@ -15,7 +16,16 @@ Open a PDF (button or drag-drop), annotate, hit **Save** to download
 `<name>-annotated.pdf`.
 
 Tools: **V** select · **P** pen · **H** highlighter · **T** text · **E** eraser ·
+**C** code block · **M** math formula · **D** diagram ·
 Ctrl/Cmd+Z undo · Ctrl/Cmd+Shift+Z redo · Ctrl/Cmd+S save · Ctrl/Cmd+scroll zoom.
+
+- **Code blocks** edit in CodeMirror 6 and render via Shiki (github-light);
+  they flatten into the saved PDF as real selectable colored text in Noto Sans
+  Mono. Language picker appears while a block is selected (C default).
+- **Math** edits in a MathLive field (type LaTeX like `\frac{1}{2}`), renders
+  via MathJax SVG, and saves as a crisp 4x raster in the chosen pen color.
+- **Diagrams** open a full Excalidraw editor in a modal; scenes stay editable
+  (double-click) and save as 3x rasters with transparent background.
 
 ## Desktop app (Tauri)
 
