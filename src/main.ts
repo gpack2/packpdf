@@ -1,5 +1,12 @@
 import './styles.css';
 import fontUrl from './assets/NotoSans-Regular.ttf?url';
+import {
+  confirmDiscard,
+  guardWindowClose,
+  inDesktop,
+  onOsFileOpen,
+  saveWithDialog,
+} from './desktop';
 import { History, removeCmd, updateCmd } from './history';
 import { loadPdf, type LoadedPdf } from './pdf/render';
 import { savePdf, type PageGeom } from './pdf/save';
@@ -126,6 +133,8 @@ class App {
     this.history.onChange(() => this.syncToolbar());
 
     this.wireGlobalEvents();
+    onOsFileOpen((f) => void this.openFile(f));
+    guardWindowClose(() => this.dirty && this.store.count > 0);
     document.fonts?.load('16px "PackPDF Sans"').catch(() => {});
     this.syncToolbar();
   }
@@ -332,7 +341,7 @@ class App {
     if (
       this.dirty &&
       this.store.count > 0 &&
-      !confirm('Discard the annotations on the current PDF?')
+      !(await confirmDiscard('Discard the annotations on the current PDF?'))
     ) {
       return;
     }
@@ -387,6 +396,7 @@ class App {
     try {
       if (!this.fontBytes) {
         const res = await fetch(fontUrl);
+        if (!res.ok) throw new Error(`font fetch failed: ${res.status}`);
         this.fontBytes = new Uint8Array(await res.arrayBuffer());
       }
       const pageGeoms: PageGeom[] = this.loaded.pages.map((p) => ({
@@ -399,13 +409,18 @@ class App {
         annotations: this.store.all(),
         pageGeoms,
       });
-      const blob = new Blob([out.slice().buffer as ArrayBuffer], { type: 'application/pdf' });
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = `${this.baseName}-annotated.pdf`;
-      a.click();
-      setTimeout(() => URL.revokeObjectURL(url), 10_000);
+      if (inDesktop) {
+        const saved = await saveWithDialog(out, `${this.baseName}-annotated.pdf`);
+        if (!saved) return; // user cancelled the dialog
+      } else {
+        const blob = new Blob([out.slice().buffer as ArrayBuffer], { type: 'application/pdf' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `${this.baseName}-annotated.pdf`;
+        a.click();
+        setTimeout(() => URL.revokeObjectURL(url), 10_000);
+      }
       this.dirty = false;
     } catch {
       this.showBanner('Saving failed — your annotations are still here. Try again.');
