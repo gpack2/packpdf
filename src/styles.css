@@ -3,6 +3,11 @@
   src: url('./assets/NotoSans-Regular.ttf') format('truetype');
 }
 
+@font-face {
+  font-family: 'PackPDF Mono';
+  src: url('./assets/NotoSansMono-Regular.ttf') format('truetype');
+}
+
 :root {
   --accent: #2563eb;
   --chrome: #1f2124;
@@ -121,6 +126,33 @@ body { font-family: system-ui, -apple-system, sans-serif; background: #e4e4ea; o
 .pages[data-tool='text'] .textbox:hover:not(.editing) { outline-color: rgba(37, 99, 235, 0.55); }
 .textbox.selected { outline: 1.5px dashed var(--accent); }
 .textbox.editing { outline: 1.5px solid var(--accent); cursor: text; }
+
+/* ---------- code blocks ---------- */
+
+.pages[data-tool='pen'] .codeblock,
+.pages[data-tool='highlight'] .codeblock { pointer-events: none; }
+.pages[data-tool='code'] .page { cursor: copy; }
+
+.codeblock {
+  position: absolute; background: #f6f8fa; border: 1px solid #d0d7de;
+  font-family: 'PackPDF Mono', monospace; line-height: 1.4; color: #24292f;
+  outline: 1px dashed transparent; outline-offset: 2px;
+}
+.codeblock pre { margin: 0; font: inherit; }
+.codeblock code { font: inherit; white-space: pre; display: block; }
+.pages[data-tool='select'] .codeblock:not(.editing),
+.pages[data-tool='code'] .codeblock:not(.editing) { cursor: move; }
+.pages[data-tool='select'] .codeblock:hover:not(.editing),
+.pages[data-tool='code'] .codeblock:hover:not(.editing) { outline-color: rgba(37, 99, 235, 0.55); }
+.codeblock.selected { outline: 1.5px dashed var(--accent); }
+.codeblock.editing { outline: 1.5px solid var(--accent); cursor: text; }
+.codeblock .code-editor-host { min-width: 60px; min-height: 1.4em; }
+
+.code-lang {
+  position: absolute; top: -28px; right: 0; font-size: 12px; font-family: system-ui, sans-serif;
+  border: 1px solid #d0d7de; border-radius: 4px; background: #fff; padding: 2px 4px;
+  cursor: pointer;
+}
 
 /* ---------- empty state ---------- */
 

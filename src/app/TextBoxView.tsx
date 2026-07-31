@@ -1,6 +1,7 @@
 import { useEffect, useLayoutEffect, useRef } from 'react';
 import { addCmd, removeCmd, updateCmd } from '../history';
 import { LINE_HEIGHT_FACTOR, newId, type Point, type TextBox } from '../types';
+import { startDragMove } from './dragMove';
 import { history, select, store, uiState } from './state';
 
 export function autosize(el: HTMLTextAreaElement): void {
@@ -8,56 +9,6 @@ export function autosize(el: HTMLTextAreaElement): void {
   el.style.height = '0px';
   el.style.width = `${el.scrollWidth + 4}px`;
   el.style.height = `${el.scrollHeight}px`;
-}
-
-/**
- * Drag-to-move with pointer capture; a motionless click triggers
- * onClickInstead. Position deltas are committed as one undo entry.
- */
-function startDrag(
-  el: HTMLTextAreaElement,
-  t: TextBox,
-  e: React.PointerEvent,
-  onClickInstead?: () => void,
-): void {
-  const zoom = uiState.get().zoom;
-  const startX = e.clientX;
-  const startY = e.clientY;
-  let moved = false;
-  el.setPointerCapture(e.pointerId);
-  const cleanup = () => {
-    el.removeEventListener('pointermove', onMove);
-    el.removeEventListener('pointerup', onUp);
-    el.removeEventListener('pointercancel', onCancel);
-  };
-  const onMove = (ev: PointerEvent) => {
-    if (!moved && Math.hypot(ev.clientX - startX, ev.clientY - startY) > 2) moved = true;
-    if (!moved) return;
-    el.style.left = `${(t.x + (ev.clientX - startX) / zoom) * zoom}px`;
-    el.style.top = `${(t.y + (ev.clientY - startY) / zoom) * zoom}px`;
-  };
-  const onUp = (ev: PointerEvent) => {
-    cleanup();
-    if (!moved) {
-      onClickInstead?.();
-      return;
-    }
-    history.exec(
-      updateCmd(store, t, {
-        ...t,
-        x: t.x + (ev.clientX - startX) / zoom,
-        y: t.y + (ev.clientY - startY) / zoom,
-      }),
-    );
-  };
-  const onCancel = () => {
-    cleanup();
-    el.style.left = `${t.x * zoom}px`;
-    el.style.top = `${t.y * zoom}px`;
-  };
-  el.addEventListener('pointermove', onMove);
-  el.addEventListener('pointerup', onUp);
-  el.addEventListener('pointercancel', onCancel);
 }
 
 export function TextBoxView({
@@ -107,7 +58,7 @@ export function TextBoxView({
       if (el.readOnly) {
         // Drag moves the box; a motionless click opens it for editing.
         e.preventDefault();
-        startDrag(el, t, e, beginEdit);
+        startDragMove(el, t, e, beginEdit);
       }
       return;
     }
@@ -117,7 +68,7 @@ export function TextBoxView({
       e.preventDefault();
       select(t.id);
       if (e.detail >= 2) beginEdit();
-      else startDrag(el, t, e);
+      else startDragMove(el, t, e);
     }
   };
 

@@ -78,12 +78,14 @@ export function showBanner(msg: string): void {
 /** Applies a style patch to the selected annotation (optionally kind-gated). */
 export function restyleSelection(
   patch: Partial<import('../types').Annotation>,
-  kind?: import('../types').Annotation['kind'],
+  kind?: import('../types').Annotation['kind'] | import('../types').Annotation['kind'][],
 ): void {
   const id = uiState.get().selectedId;
   if (!id) return;
   const a = store.get(id);
-  if (!a || (kind && a.kind !== kind)) return;
+  if (!a) return;
+  const kinds = kind === undefined ? null : Array.isArray(kind) ? kind : [kind];
+  if (kinds && !kinds.includes(a.kind)) return;
   history.exec(updateCmd(store, a, { ...a, ...patch } as import('../types').Annotation));
 }
 

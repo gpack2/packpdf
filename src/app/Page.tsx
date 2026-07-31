@@ -6,10 +6,12 @@ import {
   HIGHLIGHT_OPACITY,
   HIGHLIGHT_WIDTH,
   newId,
+  type CodeBlock,
   type Point,
   type Stroke,
   type TextBox,
 } from '../types';
+import { CodeBlockView, DraftCodeBlock } from './CodeBlockView';
 import { history, select, store, uiState, useStoreVersion, useUiState } from './state';
 import { DraftTextBox, TextBoxView } from './TextBoxView';
 
@@ -173,6 +175,7 @@ export function Page({
   const rendererRef = useRef<CanvasRenderer | null>(null);
   const [visible, setVisible] = useState(false);
   const [draft, setDraft] = useState<Point | null>(null);
+  const [codeDraft, setCodeDraft] = useState<Point | null>(null);
 
   if (!rendererRef.current) rendererRef.current = new CanvasRenderer(info);
 
@@ -202,8 +205,8 @@ export function Page({
   const onPointerDown = (e: React.PointerEvent<HTMLDivElement>) => {
     const pageEl = rootRef.current;
     if (!pageEl || e.button !== 0) return;
-    // Textboxes own their pointer events (and stop propagation).
-    if ((e.target as Element).closest?.('.textbox')) return;
+    // Textboxes and code blocks own their pointer events (and stop propagation).
+    if ((e.target as Element).closest?.('.textbox, .codeblock')) return;
     switch (uiState.get().tool) {
       case 'pen':
       case 'highlight':
@@ -218,6 +221,12 @@ export function Page({
         setDraft(toPagePoint(pageEl, e, uiState.get().zoom));
         break;
       }
+      case 'code': {
+        e.preventDefault();
+        select(null);
+        setCodeDraft(toPagePoint(pageEl, e, uiState.get().zoom));
+        break;
+      }
       case 'select': {
         const pathEl = (e.target as Element).closest?.('path[data-id]') as SVGPathElement | null;
         select(pathEl?.dataset.id ?? null);
@@ -229,6 +238,7 @@ export function Page({
   const anns = store.pageAnnotations(info.index);
   const strokes = anns.filter((a): a is Stroke => a.kind === 'stroke');
   const boxes = anns.filter((a): a is TextBox => a.kind === 'text');
+  const codeBlocks = anns.filter((a): a is CodeBlock => a.kind === 'code');
   const selectedStroke = strokes.find((s) => s.id === selectedId);
   const w = info.width * zoom;
   const h = info.height * zoom;
@@ -275,7 +285,13 @@ export function Page({
         {boxes.map((t) => (
           <TextBoxView key={t.id} t={t} zoom={zoom} selected={t.id === selectedId} />
         ))}
+        {codeBlocks.map((cbAnn) => (
+          <CodeBlockView key={cbAnn.id} cb={cbAnn} zoom={zoom} selected={cbAnn.id === selectedId} />
+        ))}
         {draft && <DraftTextBox page={info.index} at={draft} onDone={() => setDraft(null)} />}
+        {codeDraft && (
+          <DraftCodeBlock page={info.index} at={codeDraft} onDone={() => setCodeDraft(null)} />
+        )}
       </div>
     </div>
   );

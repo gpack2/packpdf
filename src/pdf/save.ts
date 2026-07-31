@@ -2,7 +2,20 @@ import fontkit from '@pdf-lib/fontkit';
 import { BlendMode, LineCapStyle, PDFDocument, degrees, rgb } from 'pdf-lib';
 import { applyTransform, invertTransform, type Matrix, type Rotation } from '../coords';
 import { strokePathD } from '../geometry';
-import { LINE_HEIGHT_FACTOR, type Annotation, type Stroke, type TextBox } from '../types';
+import {
+  CODE_BG,
+  CODE_BORDER,
+  CODE_FG,
+  CODE_LINE_HEIGHT,
+  CODE_PAD,
+  CODE_RADIUS,
+  LINE_HEIGHT_FACTOR,
+  type Annotation,
+  type CodeBlock,
+  type Stroke,
+  type TextBox,
+  type TokenLine,
+} from '../types';
 
 export interface PageGeom {
   /** Scale-1 pdf.js viewport transform for the page. */
@@ -16,6 +29,10 @@ export interface SaveInput {
   annotations: Annotation[];
   /** Indexed by page number. */
   pageGeoms: PageGeom[];
+  /** Required when any code annotation is present. */
+  monoFontBytes?: Uint8Array;
+  /** Colored token runs per code annotation id; plain-text fallback if absent. */
+  codeTokens?: Map<string, TokenLine[]>;
 }
 
 export interface FontMetrics {
@@ -40,8 +57,9 @@ export function hexToRgb01(hex: string): { r: number; g: number; b: number } {
 export function baselineOffsets(
   metrics: FontMetrics,
   fontSize: number,
+  lineHeightFactor: number = LINE_HEIGHT_FACTOR,
 ): { first: number; lineHeight: number } {
-  const lineHeight = LINE_HEIGHT_FACTOR * fontSize;
+  const lineHeight = lineHeightFactor * fontSize;
   const scale = fontSize / metrics.unitsPerEm;
   const content = (metrics.ascent - metrics.descent) * scale;
   const first = (lineHeight - content) / 2 + metrics.ascent * scale;
@@ -64,6 +82,15 @@ export async function savePdf(input: SaveInput): Promise<Uint8Array> {
     unitsPerEm: fk.unitsPerEm,
   };
 
+  let mono: Awaited<ReturnType<PDFDocument['embedFont']>> | null = null;
+  let monoMetrics: FontMetrics | null = null;
+  if (input.annotations.some((a) => a.kind === 'code')) {
+    if (!input.monoFontBytes) throw new Error('code annotations present without monoFontBytes');
+    mono = await doc.embedFont(input.monoFontBytes, { subset: true });
+    const mfk = fontkit.create(input.monoFontBytes);
+    monoMetrics = { ascent: mfk.ascent, descent: mfk.descent, unitsPerEm: mfk.unitsPerEm };
+  }
+
   const pages = doc.getPages();
 
   for (const a of input.annotations) {
@@ -71,14 +98,113 @@ export async function savePdf(input: SaveInput): Promise<Uint8Array> {
     const geom = input.pageGeoms[a.page];
     if (!page || !geom) continue;
     const inv = invertTransform(geom.transform);
-    if (a.kind === 'stroke') drawStroke(page, a, inv);
-    else drawTextBox(page, a, inv, geom.rotation, font, metrics);
+    switch (a.kind) {
+      case 'stroke':
+        drawStroke(page, a, inv);
+        break;
+      case 'text':
+        drawTextBox(page, a, inv, geom.rotation, font, metrics);
+        break;
+      case 'code': {
+        const lines =
+          input.codeTokens?.get(a.id) ??
+          a.code.split('\n').map((l) => [{ text: l, color: CODE_FG }]);
+        drawCode(page, a, inv, geom.rotation, mono!, monoMetrics!, lines);
+        break;
+      }
+    }
   }
 
   return doc.save();
 }
 
 type PdfPage = ReturnType<PDFDocument['getPages']>[number];
+type PdfFont = Awaited<ReturnType<PDFDocument['embedFont']>>;
+
+/**
+ * Rounded-rect outline in viewport coordinates, mapped point-by-point through
+ * the page's inverse transform (affine maps preserve the quadratic corner
+ * control points), emitted in drawSvgPath's (x, -y) convention. Rotated pages
+ * come out correctly because every coordinate is mapped, not just the origin.
+ */
+function roundedRectD(
+  inv: Matrix,
+  x: number,
+  y: number,
+  w: number,
+  h: number,
+  r: number,
+): string {
+  const m = (px: number, py: number): string => {
+    const u = applyTransform(inv, { x: px, y: py });
+    return `${u.x} ${-u.y}`;
+  };
+  return [
+    `M ${m(x + r, y)}`,
+    `L ${m(x + w - r, y)}`,
+    `Q ${m(x + w, y)} ${m(x + w, y + r)}`,
+    `L ${m(x + w, y + h - r)}`,
+    `Q ${m(x + w, y + h)} ${m(x + w - r, y + h)}`,
+    `L ${m(x + r, y + h)}`,
+    `Q ${m(x, y + h)} ${m(x, y + h - r)}`,
+    `L ${m(x, y + r)}`,
+    `Q ${m(x, y)} ${m(x + r, y)}`,
+    'Z',
+  ].join(' ');
+}
+
+/** Card rectangle plus per-token colored runs in the embedded mono font. */
+function drawCode(
+  page: PdfPage,
+  cb: CodeBlock,
+  inv: Matrix,
+  rotation: Rotation,
+  font: PdfFont,
+  metrics: FontMetrics,
+  lines: TokenLine[],
+): void {
+  const size = cb.fontSize;
+  const lineHeight = CODE_LINE_HEIGHT * size;
+  const contentW = Math.max(
+    1,
+    ...lines.map((l) => l.reduce((sum, t) => sum + font.widthOfTextAtSize(t.text, size), 0)),
+  );
+  const w = contentW + 2 * CODE_PAD;
+  const h = Math.max(1, lines.length) * lineHeight + 2 * CODE_PAD;
+
+  const bg = hexToRgb01(CODE_BG);
+  const bd = hexToRgb01(CODE_BORDER);
+  page.drawSvgPath(roundedRectD(inv, cb.x, cb.y, w, h, CODE_RADIUS), {
+    x: 0,
+    y: 0,
+    color: rgb(bg.r, bg.g, bg.b),
+    borderColor: rgb(bd.r, bd.g, bd.b),
+    borderWidth: 1,
+  });
+
+  const { first } = baselineOffsets(metrics, size, CODE_LINE_HEIGHT);
+  for (let i = 0; i < lines.length; i++) {
+    let xOff = CODE_PAD;
+    for (const run of lines[i] ?? []) {
+      if (run.text.trim() !== '') {
+        const anchor = applyTransform(inv, {
+          x: cb.x + xOff,
+          y: cb.y + CODE_PAD + first + i * lineHeight,
+        });
+        const { r, g, b } = hexToRgb01(run.color);
+        page.drawText(run.text, {
+          x: anchor.x,
+          y: anchor.y,
+          size,
+          font,
+          color: rgb(r, g, b),
+          rotate: degrees(rotation),
+        });
+      }
+      xOff += font.widthOfTextAtSize(run.text, size);
+    }
+  }
+}
 
 function drawStroke(page: PdfPage, stroke: Stroke, inv: Matrix): void {
   if (stroke.points.length === 0) return;

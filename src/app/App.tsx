@@ -1,5 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import fontUrl from '../assets/NotoSans-Regular.ttf?url';
+import monoFontUrl from '../assets/NotoSansMono-Regular.ttf?url';
+import { tokenizeCode } from '../code';
 import {
   confirmDiscard,
   guardWindowClose,
@@ -10,7 +12,7 @@ import {
 import { removeCmd } from '../history';
 import { loadPdf } from '../pdf/render';
 import { savePdf, type PageGeom } from '../pdf/save';
-import type { Tool } from '../types';
+import type { CodeBlock, TokenLine, Tool } from '../types';
 import { Scroller } from './Scroller';
 import { setTool, Toolbar } from './Toolbar';
 import {
@@ -26,6 +28,13 @@ import {
 } from './state';
 
 let fontBytes: Uint8Array | null = null;
+let monoBytes: Uint8Array | null = null;
+
+async function fetchFont(url: string): Promise<Uint8Array> {
+  const res = await fetch(url);
+  if (!res.ok) throw new Error(`font fetch failed: ${res.status}`);
+  return new Uint8Array(await res.arrayBuffer());
+}
 
 async function openFile(file: File, bumpDocSeq: () => void): Promise<void> {
   if (
@@ -69,11 +78,21 @@ async function save(): Promise<void> {
   const { loaded, originalBytes, baseName } = session.get();
   if (!loaded || !originalBytes) return;
   try {
-    if (!fontBytes) {
-      const res = await fetch(fontUrl);
-      if (!res.ok) throw new Error(`font fetch failed: ${res.status}`);
-      fontBytes = new Uint8Array(await res.arrayBuffer());
+    fontBytes ??= await fetchFont(fontUrl);
+    const annotations = store.all();
+
+    // Code blocks flatten as colored vector text: embed the mono font and
+    // precompute Shiki token runs here so savePdf stays DOM- and async-free.
+    let monoFontBytes: Uint8Array | undefined;
+    let codeTokens: Map<string, TokenLine[]> | undefined;
+    const codeAnns = annotations.filter((a): a is CodeBlock => a.kind === 'code');
+    if (codeAnns.length > 0) {
+      monoBytes ??= await fetchFont(monoFontUrl);
+      monoFontBytes = monoBytes;
+      codeTokens = new Map();
+      for (const c of codeAnns) codeTokens.set(c.id, await tokenizeCode(c.code, c.lang));
     }
+
     const pageGeoms: PageGeom[] = loaded.pages.map((p) => ({
       transform: p.transform,
       rotation: p.rotation,
@@ -81,8 +100,10 @@ async function save(): Promise<void> {
     const out = await savePdf({
       originalBytes,
       fontBytes,
-      annotations: store.all(),
+      annotations,
       pageGeoms,
+      monoFontBytes,
+      codeTokens,
     });
     if (inDesktop) {
       const saved = await saveWithDialog(out, `${baseName}-annotated.pdf`);
@@ -120,8 +141,12 @@ export function App() {
   useEffect(() => {
     const onKeyDown = (e: KeyboardEvent) => {
       const target = e.target as HTMLElement | null;
+      // contenteditable covers CodeMirror; math-field covers MathLive.
       const inField =
-        target instanceof HTMLTextAreaElement || target instanceof HTMLInputElement;
+        target instanceof HTMLTextAreaElement ||
+        target instanceof HTMLInputElement ||
+        (target?.isContentEditable ?? false) ||
+        target?.tagName === 'MATH-FIELD';
       const mod = e.metaKey || e.ctrlKey;
       const key = e.key.toLowerCase();
       if (mod && key === 's') {
@@ -162,6 +187,7 @@ export function App() {
           h: 'highlight',
           t: 'text',
           e: 'eraser',
+          c: 'code',
         };
         const t = tools[key];
         if (t) setTool(t);
