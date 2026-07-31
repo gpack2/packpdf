@@ -10,9 +10,11 @@ import {
   saveWithDialog,
 } from '../desktop';
 import { removeCmd } from '../history';
+import { colorSvg, texToSvg } from '../math';
 import { loadPdf } from '../pdf/render';
-import { savePdf, type PageGeom } from '../pdf/save';
-import type { CodeBlock, TokenLine, Tool } from '../types';
+import { savePdf, type PageGeom, type RasterAsset } from '../pdf/save';
+import type { CodeBlock, MathBox, TokenLine, Tool } from '../types';
+import { svgToPng } from './rasterize';
 import { Scroller } from './Scroller';
 import { setTool, Toolbar } from './Toolbar';
 import {
@@ -93,6 +95,17 @@ async function save(): Promise<void> {
       for (const c of codeAnns) codeTokens.set(c.id, await tokenizeCode(c.code, c.lang));
     }
 
+    // Formulas flatten as high-res rasters of the exact SVG shown on screen.
+    let mathImages: Map<string, RasterAsset> | undefined;
+    const mathAnns = annotations.filter((a): a is MathBox => a.kind === 'math');
+    if (mathAnns.length > 0) {
+      mathImages = new Map();
+      for (const m of mathAnns) {
+        const r = texToSvg(m.tex, m.fontSize);
+        mathImages.set(m.id, await svgToPng(colorSvg(r.svg, m.color), r.width, r.height, 4));
+      }
+    }
+
     const pageGeoms: PageGeom[] = loaded.pages.map((p) => ({
       transform: p.transform,
       rotation: p.rotation,
@@ -104,6 +117,7 @@ async function save(): Promise<void> {
       pageGeoms,
       monoFontBytes,
       codeTokens,
+      mathImages,
     });
     if (inDesktop) {
       const saved = await saveWithDialog(out, `${baseName}-annotated.pdf`);
@@ -188,6 +202,7 @@ export function App() {
           t: 'text',
           e: 'eraser',
           c: 'code',
+          m: 'math',
         };
         const t = tools[key];
         if (t) setTool(t);

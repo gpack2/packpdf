@@ -1,4 +1,4 @@
-export type Tool = 'select' | 'pen' | 'highlight' | 'text' | 'eraser' | 'code';
+export type Tool = 'select' | 'pen' | 'highlight' | 'text' | 'eraser' | 'code' | 'math';
 
 /** Highlighter strokes have a fixed width and opacity (marker look). */
 export const HIGHLIGHT_WIDTH = 12;
@@ -65,7 +65,21 @@ export interface CodeBlock {
   lang: CodeLang;
 }
 
-export type Annotation = Stroke | TextBox | CodeBlock;
+/** LaTeX formula anchored at its top-left corner, scale-1 viewport coords. */
+export interface MathBox {
+  id: string;
+  kind: 'math';
+  page: number;
+  x: number;
+  y: number;
+  tex: string;
+  fontSize: number;
+  color: string;
+}
+
+export type Annotation = Stroke | TextBox | CodeBlock | MathBox;
+
+export const MATH_FONT_SIZE = 16;
 
 /** Shared by textbox CSS line-height and the PDF save pipeline. */
 export const LINE_HEIGHT_FACTOR = 1.3;

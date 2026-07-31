@@ -12,10 +12,18 @@ import {
   LINE_HEIGHT_FACTOR,
   type Annotation,
   type CodeBlock,
+  type MathBox,
   type Stroke,
   type TextBox,
   type TokenLine,
 } from '../types';
+
+/** Pre-rasterized image for an annotation, sized in scale-1 viewport units. */
+export interface RasterAsset {
+  png: Uint8Array;
+  width: number;
+  height: number;
+}
 
 export interface PageGeom {
   /** Scale-1 pdf.js viewport transform for the page. */
@@ -33,6 +41,8 @@ export interface SaveInput {
   monoFontBytes?: Uint8Array;
   /** Colored token runs per code annotation id; plain-text fallback if absent. */
   codeTokens?: Map<string, TokenLine[]>;
+  /** Pre-rasterized formula PNGs keyed by math annotation id (required per math annotation). */
+  mathImages?: Map<string, RasterAsset>;
 }
 
 export interface FontMetrics {
@@ -112,10 +122,40 @@ export async function savePdf(input: SaveInput): Promise<Uint8Array> {
         drawCode(page, a, inv, geom.rotation, mono!, monoMetrics!, lines);
         break;
       }
+      case 'math': {
+        const asset = input.mathImages?.get(a.id);
+        if (!asset) throw new Error(`math annotation ${a.id} without rasterized image`);
+        await drawMath(doc, page, a, inv, geom.rotation, asset);
+        break;
+      }
     }
   }
 
   return doc.save();
+}
+
+/**
+ * Places the pre-rasterized formula PNG. The anchor is the box's viewport
+ * bottom-left corner mapped into user space; the rotate option then matches
+ * drawText's behavior on /Rotate'd pages.
+ */
+async function drawMath(
+  doc: PDFDocument,
+  page: PdfPage,
+  m: MathBox,
+  inv: Matrix,
+  rotation: Rotation,
+  asset: RasterAsset,
+): Promise<void> {
+  const image = await doc.embedPng(asset.png.slice());
+  const anchor = applyTransform(inv, { x: m.x, y: m.y + asset.height });
+  page.drawImage(image, {
+    x: anchor.x,
+    y: anchor.y,
+    width: asset.width,
+    height: asset.height,
+    rotate: degrees(rotation),
+  });
 }
 
 type PdfPage = ReturnType<PDFDocument['getPages']>[number];

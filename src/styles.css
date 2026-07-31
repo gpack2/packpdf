@@ -96,11 +96,11 @@ body { font-family: system-ui, -apple-system, sans-serif; background: #e4e4ea; o
 }
 .page { position: relative; background: #fff; box-shadow: 0 2px 10px rgba(20, 20, 40, 0.22); }
 .page canvas { position: absolute; inset: 0; display: block; }
-.page svg { position: absolute; inset: 0; width: 100%; height: 100%; display: block; overflow: visible; }
+.page > svg { position: absolute; inset: 0; width: 100%; height: 100%; display: block; overflow: visible; }
 .text-layer { position: absolute; inset: 0; }
 
-.page svg path { pointer-events: none; }
-.pages[data-tool='select'] .page svg path[data-id] { pointer-events: stroke; cursor: pointer; }
+.page > svg path { pointer-events: none; }
+.pages[data-tool='select'] .page > svg path[data-id] { pointer-events: stroke; cursor: pointer; }
 
 .pages[data-tool='pen'] .page,
 .pages[data-tool='highlight'] .page { cursor: crosshair; }
@@ -152,6 +152,27 @@ body { font-family: system-ui, -apple-system, sans-serif; background: #e4e4ea; o
   position: absolute; top: -28px; right: 0; font-size: 12px; font-family: system-ui, sans-serif;
   border: 1px solid #d0d7de; border-radius: 4px; background: #fff; padding: 2px 4px;
   cursor: pointer;
+}
+
+/* ---------- math boxes ---------- */
+
+.pages[data-tool='pen'] .mathbox,
+.pages[data-tool='highlight'] .mathbox { pointer-events: none; }
+.pages[data-tool='math'] .page { cursor: cell; }
+
+.mathbox {
+  position: absolute; outline: 1px dashed transparent; outline-offset: 3px;
+}
+.mathbox .math-render svg { width: 100%; height: auto; display: block; }
+.pages[data-tool='select'] .mathbox:not(.editing),
+.pages[data-tool='math'] .mathbox:not(.editing) { cursor: move; }
+.pages[data-tool='select'] .mathbox:hover:not(.editing),
+.pages[data-tool='math'] .mathbox:hover:not(.editing) { outline-color: rgba(37, 99, 235, 0.55); }
+.mathbox.selected { outline: 1.5px dashed var(--accent); }
+.mathbox.editing { outline: none; }
+.mathbox math-field {
+  min-width: 120px; background: #fff; border: 1.5px solid var(--accent);
+  border-radius: 4px; padding: 2px 6px;
 }
 
 /* ---------- empty state ---------- */
