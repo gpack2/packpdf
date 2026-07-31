@@ -7,12 +7,14 @@ import {
   HIGHLIGHT_WIDTH,
   newId,
   type CodeBlock,
+  type DiagramBox,
   type MathBox,
   type Point,
   type Stroke,
   type TextBox,
 } from '../types';
 import { CodeBlockView, DraftCodeBlock } from './CodeBlockView';
+import { DiagramView, DraftDiagram } from './DiagramView';
 import { DraftMathBox, MathBoxView } from './MathBoxView';
 import { history, select, store, uiState, useStoreVersion, useUiState } from './state';
 import { DraftTextBox, TextBoxView } from './TextBoxView';
@@ -179,6 +181,7 @@ export function Page({
   const [draft, setDraft] = useState<Point | null>(null);
   const [codeDraft, setCodeDraft] = useState<Point | null>(null);
   const [mathDraft, setMathDraft] = useState<Point | null>(null);
+  const [diagramDraft, setDiagramDraft] = useState<Point | null>(null);
 
   if (!rendererRef.current) rendererRef.current = new CanvasRenderer(info);
 
@@ -209,7 +212,7 @@ export function Page({
     const pageEl = rootRef.current;
     if (!pageEl || e.button !== 0) return;
     // Overlay annotations own their pointer events (and stop propagation).
-    if ((e.target as Element).closest?.('.textbox, .codeblock, .mathbox')) return;
+    if ((e.target as Element).closest?.('.textbox, .codeblock, .mathbox, .diagrambox')) return;
     switch (uiState.get().tool) {
       case 'pen':
       case 'highlight':
@@ -236,6 +239,12 @@ export function Page({
         setMathDraft(toPagePoint(pageEl, e, uiState.get().zoom));
         break;
       }
+      case 'diagram': {
+        e.preventDefault();
+        select(null);
+        setDiagramDraft(toPagePoint(pageEl, e, uiState.get().zoom));
+        break;
+      }
       case 'select': {
         const pathEl = (e.target as Element).closest?.('path[data-id]') as SVGPathElement | null;
         select(pathEl?.dataset.id ?? null);
@@ -249,6 +258,7 @@ export function Page({
   const boxes = anns.filter((a): a is TextBox => a.kind === 'text');
   const codeBlocks = anns.filter((a): a is CodeBlock => a.kind === 'code');
   const mathBoxes = anns.filter((a): a is MathBox => a.kind === 'math');
+  const diagrams = anns.filter((a): a is DiagramBox => a.kind === 'diagram');
   const selectedStroke = strokes.find((s) => s.id === selectedId);
   const w = info.width * zoom;
   const h = info.height * zoom;
@@ -301,12 +311,22 @@ export function Page({
         {mathBoxes.map((mb) => (
           <MathBoxView key={mb.id} m={mb} zoom={zoom} selected={mb.id === selectedId} />
         ))}
+        {diagrams.map((dg) => (
+          <DiagramView key={dg.id} d={dg} zoom={zoom} selected={dg.id === selectedId} />
+        ))}
         {draft && <DraftTextBox page={info.index} at={draft} onDone={() => setDraft(null)} />}
         {codeDraft && (
           <DraftCodeBlock page={info.index} at={codeDraft} onDone={() => setCodeDraft(null)} />
         )}
         {mathDraft && (
           <DraftMathBox page={info.index} at={mathDraft} onDone={() => setMathDraft(null)} />
+        )}
+        {diagramDraft && (
+          <DraftDiagram
+            page={info.index}
+            at={diagramDraft}
+            onDone={() => setDiagramDraft(null)}
+          />
         )}
       </div>
     </div>

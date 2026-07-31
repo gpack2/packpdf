@@ -13,7 +13,8 @@ import { removeCmd } from '../history';
 import { colorSvg, texToSvg } from '../math';
 import { loadPdf } from '../pdf/render';
 import { savePdf, type PageGeom, type RasterAsset } from '../pdf/save';
-import type { CodeBlock, MathBox, TokenLine, Tool } from '../types';
+import type { CodeBlock, DiagramBox, MathBox, TokenLine, Tool } from '../types';
+import { sceneToPng } from './DiagramView';
 import { svgToPng } from './rasterize';
 import { Scroller } from './Scroller';
 import { setTool, Toolbar } from './Toolbar';
@@ -106,6 +107,14 @@ async function save(): Promise<void> {
       }
     }
 
+    // Diagrams flatten via Excalidraw's own PNG export at 3x.
+    let diagramImages: Map<string, RasterAsset> | undefined;
+    const diagramAnns = annotations.filter((a): a is DiagramBox => a.kind === 'diagram');
+    if (diagramAnns.length > 0) {
+      diagramImages = new Map();
+      for (const d of diagramAnns) diagramImages.set(d.id, await sceneToPng(d.scene, 3));
+    }
+
     const pageGeoms: PageGeom[] = loaded.pages.map((p) => ({
       transform: p.transform,
       rotation: p.rotation,
@@ -118,6 +127,7 @@ async function save(): Promise<void> {
       monoFontBytes,
       codeTokens,
       mathImages,
+      diagramImages,
     });
     if (inDesktop) {
       const saved = await saveWithDialog(out, `${baseName}-annotated.pdf`);
@@ -203,6 +213,7 @@ export function App() {
           e: 'eraser',
           c: 'code',
           m: 'math',
+          d: 'diagram',
         };
         const t = tools[key];
         if (t) setTool(t);

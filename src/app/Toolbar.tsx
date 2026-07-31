@@ -24,6 +24,8 @@ const ICONS: Record<Tool, string> = {
     '<svg viewBox="0 0 24 24" width="17" height="17" fill="currentColor"><path d="M15.14 3a2 2 0 0 0-1.41.59L2.59 14.73a2 2 0 0 0 0 2.83L5.03 20h7.66l8.72-8.72a2 2 0 0 0 0-2.83l-4.86-4.86A2 2 0 0 0 15.14 3zm-4.9 15H5.86l-1.86-1.86 5.51-5.51 4.85 4.86z"/></svg>',
   code: '<svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 6 4 12l5 6M15 6l5 6-5 6"/></svg>',
   math: '<svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 13l3-1 3 8L13 4h8"/></svg>',
+  diagram:
+    '<svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7" rx="1"/><circle cx="17.5" cy="17.5" r="3.5"/><path d="M10 6.5h7M6.5 10v4a3 3 0 0 0 3 3h4.5"/></svg>',
 };
 
 const TOOL_TITLES: Record<Tool, string> = {
@@ -34,6 +36,7 @@ const TOOL_TITLES: Record<Tool, string> = {
   eraser: 'Eraser (E)',
   code: 'Code block (C)',
   math: 'Math formula (M)',
+  diagram: 'Diagram (D)',
 };
 
 export function setTool(t: Tool): void {

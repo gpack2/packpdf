@@ -1,4 +1,12 @@
-export type Tool = 'select' | 'pen' | 'highlight' | 'text' | 'eraser' | 'code' | 'math';
+export type Tool =
+  | 'select'
+  | 'pen'
+  | 'highlight'
+  | 'text'
+  | 'eraser'
+  | 'code'
+  | 'math'
+  | 'diagram';
 
 /** Highlighter strokes have a fixed width and opacity (marker look). */
 export const HIGHLIGHT_WIDTH = 12;
@@ -77,7 +85,21 @@ export interface MathBox {
   color: string;
 }
 
-export type Annotation = Stroke | TextBox | CodeBlock | MathBox;
+/**
+ * Excalidraw diagram anchored at its top-left corner. `scene` is the
+ * serialized {elements, files} JSON; display size derives from the scene's
+ * exported bounding box, so screen and PDF always agree.
+ */
+export interface DiagramBox {
+  id: string;
+  kind: 'diagram';
+  page: number;
+  x: number;
+  y: number;
+  scene: string;
+}
+
+export type Annotation = Stroke | TextBox | CodeBlock | MathBox | DiagramBox;
 
 export const MATH_FONT_SIZE = 16;
 

@@ -12,6 +12,7 @@ import {
   LINE_HEIGHT_FACTOR,
   type Annotation,
   type CodeBlock,
+  type DiagramBox,
   type MathBox,
   type Stroke,
   type TextBox,
@@ -43,6 +44,8 @@ export interface SaveInput {
   codeTokens?: Map<string, TokenLine[]>;
   /** Pre-rasterized formula PNGs keyed by math annotation id (required per math annotation). */
   mathImages?: Map<string, RasterAsset>;
+  /** Pre-rasterized diagram PNGs keyed by diagram annotation id (required per diagram). */
+  diagramImages?: Map<string, RasterAsset>;
 }
 
 export interface FontMetrics {
@@ -125,7 +128,13 @@ export async function savePdf(input: SaveInput): Promise<Uint8Array> {
       case 'math': {
         const asset = input.mathImages?.get(a.id);
         if (!asset) throw new Error(`math annotation ${a.id} without rasterized image`);
-        await drawMath(doc, page, a, inv, geom.rotation, asset);
+        await drawRaster(doc, page, a, inv, geom.rotation, asset);
+        break;
+      }
+      case 'diagram': {
+        const asset = input.diagramImages?.get(a.id);
+        if (!asset) throw new Error(`diagram annotation ${a.id} without rasterized image`);
+        await drawRaster(doc, page, a, inv, geom.rotation, asset);
         break;
       }
     }
@@ -135,20 +144,20 @@ export async function savePdf(input: SaveInput): Promise<Uint8Array> {
 }
 
 /**
- * Places the pre-rasterized formula PNG. The anchor is the box's viewport
- * bottom-left corner mapped into user space; the rotate option then matches
- * drawText's behavior on /Rotate'd pages.
+ * Places a pre-rasterized PNG (formula or diagram). The anchor is the box's
+ * viewport bottom-left corner mapped into user space; the rotate option then
+ * matches drawText's behavior on /Rotate'd pages.
  */
-async function drawMath(
+async function drawRaster(
   doc: PDFDocument,
   page: PdfPage,
-  m: MathBox,
+  at: MathBox | DiagramBox,
   inv: Matrix,
   rotation: Rotation,
   asset: RasterAsset,
 ): Promise<void> {
   const image = await doc.embedPng(asset.png.slice());
-  const anchor = applyTransform(inv, { x: m.x, y: m.y + asset.height });
+  const anchor = applyTransform(inv, { x: at.x, y: at.y + asset.height });
   page.drawImage(image, {
     x: anchor.x,
     y: anchor.y,
