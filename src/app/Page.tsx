@@ -16,7 +16,15 @@ import {
 import { CodeBlockView, DraftCodeBlock } from './CodeBlockView';
 import { DiagramView, DraftDiagram } from './DiagramView';
 import { DraftMathBox, MathBoxView } from './MathBoxView';
-import { history, select, store, uiState, useStoreVersion, useUiState } from './state';
+import {
+  commitActiveEdit,
+  history,
+  select,
+  store,
+  uiState,
+  useStoreVersion,
+  useUiState,
+} from './state';
 import { DraftTextBox, TextBoxView } from './TextBoxView';
 
 const SVG_NS = 'http://www.w3.org/2000/svg';
@@ -212,7 +220,13 @@ export function Page({
     const pageEl = rootRef.current;
     if (!pageEl || e.button !== 0) return;
     // Overlay annotations own their pointer events (and stop propagation).
-    if ((e.target as Element).closest?.('.textbox, .codeblock, .mathbox, .diagrambox')) return;
+    if ((e.target as Element).closest?.('.textbox-wrap, .codeblock, .mathbox, .diagrambox')) {
+      return;
+    }
+    // The tool handlers below preventDefault, which would keep an in-progress
+    // edit focused forever; commit it now so e.g. clicking the page while
+    // typing in one textbox immediately opens a new one.
+    commitActiveEdit();
     switch (uiState.get().tool) {
       case 'pen':
       case 'highlight':
@@ -314,12 +328,31 @@ export function Page({
         {diagrams.map((dg) => (
           <DiagramView key={dg.id} d={dg} zoom={zoom} selected={dg.id === selectedId} />
         ))}
-        {draft && <DraftTextBox page={info.index} at={draft} onDone={() => setDraft(null)} />}
+        {/* Keyed by position: clicking elsewhere while a draft is open must
+            remount a fresh draft there, not reuse the old one's state. */}
+        {draft && (
+          <DraftTextBox
+            key={`${draft.x},${draft.y}`}
+            page={info.index}
+            at={draft}
+            onDone={() => setDraft(null)}
+          />
+        )}
         {codeDraft && (
-          <DraftCodeBlock page={info.index} at={codeDraft} onDone={() => setCodeDraft(null)} />
+          <DraftCodeBlock
+            key={`${codeDraft.x},${codeDraft.y}`}
+            page={info.index}
+            at={codeDraft}
+            onDone={() => setCodeDraft(null)}
+          />
         )}
         {mathDraft && (
-          <DraftMathBox page={info.index} at={mathDraft} onDone={() => setMathDraft(null)} />
+          <DraftMathBox
+            key={`${mathDraft.x},${mathDraft.y}`}
+            page={info.index}
+            at={mathDraft}
+            onDone={() => setMathDraft(null)}
+          />
         )}
         {diagramDraft && (
           <DraftDiagram

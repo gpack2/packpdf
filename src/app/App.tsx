@@ -107,12 +107,16 @@ async function save(): Promise<void> {
       }
     }
 
-    // Diagrams flatten via Excalidraw's own PNG export at 3x.
+    // Diagrams flatten via Excalidraw's own PNG export at 3x of the displayed
+    // size, so scaled-up diagrams keep their pixel density (capped for memory).
     let diagramImages: Map<string, RasterAsset> | undefined;
     const diagramAnns = annotations.filter((a): a is DiagramBox => a.kind === 'diagram');
     if (diagramAnns.length > 0) {
       diagramImages = new Map();
-      for (const d of diagramAnns) diagramImages.set(d.id, await sceneToPng(d.scene, 3));
+      for (const d of diagramAnns) {
+        const px = Math.min(8, Math.max(1, 3 * (d.scale ?? 1)));
+        diagramImages.set(d.id, await sceneToPng(d.scene, px));
+      }
     }
 
     const pageGeoms: PageGeom[] = loaded.pages.map((p) => ({

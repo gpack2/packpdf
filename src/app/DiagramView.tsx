@@ -2,7 +2,8 @@ import { lazy, Suspense, useEffect, useRef, useState } from 'react';
 import { addCmd, removeCmd, updateCmd } from '../history';
 import { newId, type DiagramBox, type Point } from '../types';
 import { startDragMove } from './dragMove';
-import { history, select, store, uiState } from './state';
+import { startDragResize } from './resize';
+import { commitActiveEdit, history, select, store, uiState } from './state';
 import '@excalidraw/excalidraw/index.css';
 
 // Excalidraw resolves its lazy-loaded fonts against this path; the files are
@@ -160,17 +161,51 @@ export function DiagramView({
     if (tool === 'diagram') {
       e.stopPropagation();
       e.preventDefault();
+      commitActiveEdit();
       startDragMove(el, d, e, () => setEditing(true));
       return;
     }
     if (tool === 'select') {
       e.stopPropagation();
       e.preventDefault();
+      commitActiveEdit();
       select(d.id);
       if (e.detail >= 2) setEditing(true);
       else startDragMove(el, d, e);
     }
   };
+
+  // Corner drag adjusts the display scale, keeping the aspect ratio; the
+  // scene itself is untouched so re-editing keeps working at any size.
+  const onResizeDown = (e: React.PointerEvent<HTMLDivElement>) => {
+    const el = rootRef.current;
+    if (!el || e.button !== 0) return;
+    e.stopPropagation();
+    e.preventDefault();
+    const startW = el.offsetWidth;
+    const startH = el.offsetHeight;
+    const scaleFor = (dx: number) =>
+      Math.max(0.1, Math.min(10, (d.scale ?? 1) * ((startW + dx) / startW))) / (d.scale ?? 1);
+    startDragResize(e.currentTarget, e, {
+      onMove: (dx) => {
+        const s = scaleFor(dx);
+        el.style.width = `${startW * s}px`;
+        el.style.height = `${startH * s}px`;
+      },
+      onEnd: (dx, _dy, commit) => {
+        const s = commit ? scaleFor(dx) : 1;
+        el.style.width = `${startW * s}px`;
+        el.style.height = `${startH * s}px`;
+        const scale = (d.scale ?? 1) * s;
+        const cur = store.get(d.id);
+        if (commit && cur?.kind === 'diagram' && scale !== (cur.scale ?? 1)) {
+          history.exec(updateCmd(store, cur, { ...cur, scale }));
+        }
+      },
+    });
+  };
+
+  const scale = d.scale ?? 1;
 
   return (
     <>
@@ -181,8 +216,8 @@ export function DiagramView({
         style={{
           left: d.x * zoom,
           top: d.y * zoom,
-          width: (rendered?.width ?? 120) * zoom,
-          height: (rendered?.height ?? 80) * zoom,
+          width: (rendered?.width ?? 120) * scale * zoom,
+          height: (rendered?.height ?? 80) * scale * zoom,
         }}
         onPointerDown={onPointerDown}
         onDoubleClick={() => {
@@ -194,6 +229,9 @@ export function DiagramView({
           <div className="diagram-render" dangerouslySetInnerHTML={{ __html: rendered.svg }} />
         ) : (
           <div className="diagram-loading">…</div>
+        )}
+        {selected && (
+          <div className="resize-handle se" title="Drag to resize" onPointerDown={onResizeDown} />
         )}
       </div>
       {editing && (

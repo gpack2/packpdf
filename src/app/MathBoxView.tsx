@@ -4,7 +4,7 @@ import { addCmd, removeCmd, updateCmd } from '../history';
 import { colorSvg, texToSvg } from '../math';
 import { MATH_FONT_SIZE, newId, type MathBox, type Point } from '../types';
 import { startDragMove } from './dragMove';
-import { history, select, store, uiState } from './state';
+import { commitActiveEdit, history, select, store, uiState } from './state';
 
 // Self-hosted assets so the desktop app works offline; no sounds.
 MathfieldElement.fontsDirectory = '/mathlive/fonts';
@@ -90,12 +90,14 @@ export function MathBoxView({
     if (tool === 'math') {
       e.stopPropagation();
       e.preventDefault();
+      commitActiveEdit();
       startDragMove(el, m, e, () => setEditing(true));
       return;
     }
     if (tool === 'select') {
       e.stopPropagation();
       e.preventDefault();
+      commitActiveEdit();
       select(m.id);
       if (e.detail >= 2) setEditing(true);
       else startDragMove(el, m, e);

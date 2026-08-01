@@ -2,7 +2,7 @@ import { readFileSync } from 'node:fs';
 import { PDFDocument, StandardFonts } from 'pdf-lib';
 import { beforeAll, describe, expect, it } from 'vitest';
 import { viewportTransform, type Rotation } from '../src/coords';
-import { baselineOffsets, hexToRgb01, savePdf, type SaveInput } from '../src/pdf/save';
+import { baselineOffsets, hexToRgb01, savePdf, wrapLine, type SaveInput } from '../src/pdf/save';
 import type { Annotation } from '../src/types';
 
 const fontBytes = new Uint8Array(readFileSync('src/assets/NotoSans-Regular.ttf'));
@@ -99,6 +99,35 @@ describe('baselineOffsets', () => {
   });
 });
 
+describe('wrapLine', () => {
+  // Deterministic measurement: every character is 10 units wide.
+  const widthOf = (s: string) => s.length * 10;
+
+  it('returns short lines unchanged', () => {
+    expect(wrapLine('hello', 100, widthOf)).toEqual(['hello']);
+    expect(wrapLine('', 100, widthOf)).toEqual(['']);
+  });
+
+  it('wraps greedily at word boundaries', () => {
+    expect(wrapLine('aa bb cc dd', 50, widthOf)).toEqual(['aa bb', 'cc dd']);
+    expect(wrapLine('aaa bb c', 40, widthOf)).toEqual(['aaa', 'bb c']);
+  });
+
+  it('breaks words longer than the wrap width by characters', () => {
+    expect(wrapLine('abcdefgh', 30, widthOf)).toEqual(['abc', 'def', 'gh']);
+    expect(wrapLine('xy abcdefgh z', 40, widthOf)).toEqual(['xy', 'abcd', 'efgh', 'z']);
+  });
+
+  it('round-trips: no wrapped line exceeds the width', () => {
+    const line = 'the quick brown fox jumps over the lazy dog';
+    for (const w of [50, 90, 200]) {
+      const wrapped = wrapLine(line, w, widthOf);
+      for (const l of wrapped) expect(widthOf(l)).toBeLessThanOrEqual(w);
+      expect(wrapped.join(' ')).toBe(line);
+    }
+  });
+});
+
 describe('savePdf', () => {
   let original: Uint8Array;
 
@@ -137,6 +166,42 @@ describe('savePdf', () => {
     const text = await extractText(out);
     expect(text).toContain('μ = 0.5');
     expect(text).toContain('Ω line2');
+  }, 30000);
+
+  it('wraps textbox text to the stored width across multiple drawn lines', async () => {
+    const input: SaveInput = {
+      originalBytes: original,
+      fontBytes,
+      annotations: [
+        {
+          id: 't4',
+          kind: 'text',
+          page: 0,
+          x: 72,
+          y: 200,
+          text: 'alpha bravo charlie delta echo foxtrot',
+          color: '#000000',
+          fontSize: 14,
+          width: 70,
+        },
+      ],
+      pageGeoms: [{ transform: viewportTransform(612, 792, 0), rotation: 0 }],
+    };
+    const out = await savePdf(input);
+    const pdfjs = await import('pdfjs-dist/legacy/build/pdf.mjs');
+    const task = pdfjs.getDocument({ data: out.slice() });
+    const doc = await task.promise;
+    const page = await doc.getPage(1);
+    const content = await page.getTextContent();
+    const items = content.items.map((it) => ('str' in it ? it.str : '')).filter(Boolean);
+    await task.destroy();
+    const joined = items.join(' ');
+    for (const word of ['alpha', 'bravo', 'charlie', 'delta', 'echo', 'foxtrot']) {
+      expect(joined).toContain(word);
+    }
+    // The 70pt-wide box cannot hold the whole sentence on one drawn line.
+    const annotationLines = items.filter((s) => s.includes('alpha') || s.includes('foxtrot'));
+    expect(annotationLines.length).toBeGreaterThan(1);
   }, 30000);
 
   it('leaves the original bytes untouched and skips empty pages/lines', async () => {

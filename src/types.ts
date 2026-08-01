@@ -39,6 +39,8 @@ export interface TextBox {
   text: string;
   color: string;
   fontSize: number;
+  /** Wrap width in page units; absent = auto-size to content, no wrapping. */
+  width?: number;
 }
 
 export const CODE_LANGS = [
@@ -97,6 +99,8 @@ export interface DiagramBox {
   x: number;
   y: number;
   scene: string;
+  /** Display scale applied to the scene's intrinsic size; absent = 1. */
+  scale?: number;
 }
 
 export type Annotation = Stroke | TextBox | CodeBlock | MathBox | DiagramBox;

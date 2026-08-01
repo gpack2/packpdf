@@ -109,15 +109,30 @@ body { font-family: system-ui, -apple-system, sans-serif; background: #e4e4ea; o
   cursor: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="17" height="17"><circle cx="8" cy="8" r="7" fill="rgba(255,255,255,0.6)" stroke="black" stroke-width="1.5"/></svg>') 8 8, auto;
 }
 
+/* ---------- resize handles ---------- */
+
+.resize-handle {
+  position: absolute; width: 11px; height: 11px; border-radius: 50%;
+  background: #fff; border: 1.5px solid var(--accent);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.25);
+  touch-action: none; z-index: 2; pointer-events: auto;
+}
+.resize-handle.se { right: -7px; bottom: -7px; cursor: nwse-resize; }
+.resize-handle.e { right: -7px; top: 50%; transform: translateY(-50%); cursor: ew-resize; }
+
 /* ---------- textboxes ---------- */
 
-.pages[data-tool='pen'] .textbox,
-.pages[data-tool='highlight'] .textbox { pointer-events: none; }
+/* pointer-events inherits, so disabling the wrapper covers handle + textarea */
+.pages[data-tool='pen'] .textbox-wrap,
+.pages[data-tool='highlight'] .textbox-wrap { pointer-events: none; }
+
+.textbox-wrap { position: absolute; width: max-content; }
 
 .textbox {
-  position: absolute; background: transparent; border: none; resize: none;
+  position: relative; background: transparent; border: none; resize: none;
   overflow: hidden; margin: 0; padding: 0; display: block;
   font-family: 'PackPDF Sans', sans-serif; line-height: 1.3; white-space: pre;
+  overflow-wrap: break-word;
   outline: 1px dashed transparent; outline-offset: 2px; min-width: 4px;
 }
 .pages[data-tool='select'] .textbox:not(.editing),

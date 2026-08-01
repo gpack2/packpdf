@@ -121,10 +121,10 @@ export function Scroller({
     const onWheel = (e: WheelEvent) => {
       if (!e.ctrlKey && !e.metaKey) return;
       e.preventDefault();
-      setZoom(uiState.get().zoom * (e.deltaY < 0 ? 1.1 : 1 / 1.1), {
-        x: e.clientX,
-        y: e.clientY,
-      });
+      // Delta-proportional so trackpad pinches (many tiny deltas) zoom
+      // gently; clamped so one notched-wheel click never jumps more than ~6%.
+      const factor = Math.exp(-Math.max(-60, Math.min(60, e.deltaY)) * 0.001);
+      setZoom(uiState.get().zoom * factor, { x: e.clientX, y: e.clientY });
     };
     scroller.addEventListener('wheel', onWheel, { passive: false });
     return () => scroller.removeEventListener('wheel', onWheel);

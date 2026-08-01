@@ -157,12 +157,16 @@ async function drawRaster(
   asset: RasterAsset,
 ): Promise<void> {
   const image = await doc.embedPng(asset.png.slice());
-  const anchor = applyTransform(inv, { x: at.x, y: at.y + asset.height });
+  // Diagrams carry a display scale; the asset size stays the scene-intrinsic one.
+  const s = at.kind === 'diagram' ? (at.scale ?? 1) : 1;
+  const w = asset.width * s;
+  const h = asset.height * s;
+  const anchor = applyTransform(inv, { x: at.x, y: at.y + h });
   page.drawImage(image, {
     x: anchor.x,
     y: anchor.y,
-    width: asset.width,
-    height: asset.height,
+    width: w,
+    height: h,
     rotate: degrees(rotation),
   });
 }
@@ -276,6 +280,53 @@ function drawStroke(page: PdfPage, stroke: Stroke, inv: Matrix): void {
   });
 }
 
+/** Splits a word that alone exceeds `maxWidth` into character-level chunks. */
+function breakWord(word: string, maxWidth: number, widthOf: (s: string) => number): string[] {
+  const parts: string[] = [];
+  let chunk = '';
+  for (const ch of word) {
+    if (chunk !== '' && widthOf(chunk + ch) > maxWidth) {
+      parts.push(chunk);
+      chunk = ch;
+    } else {
+      chunk += ch;
+    }
+  }
+  parts.push(chunk);
+  return parts;
+}
+
+/**
+ * Greedy word wrap of one logical line into visual lines of at most
+ * `maxWidth`, mirroring the browser's pre-wrap + break-word behavior in the
+ * on-screen textbox (both measure with the same embedded font).
+ */
+export function wrapLine(
+  line: string,
+  maxWidth: number,
+  widthOf: (s: string) => number,
+): string[] {
+  const out: string[] = [];
+  let cur = '';
+  for (const word of line.split(' ')) {
+    const joined = cur === '' ? word : `${cur} ${word}`;
+    if (widthOf(joined) <= maxWidth) {
+      cur = joined;
+      continue;
+    }
+    if (cur !== '') out.push(cur);
+    if (widthOf(word) > maxWidth) {
+      const parts = breakWord(word, maxWidth, widthOf);
+      cur = parts.pop() ?? '';
+      out.push(...parts);
+    } else {
+      cur = word;
+    }
+  }
+  out.push(cur);
+  return out;
+}
+
 function drawTextBox(
   page: PdfPage,
   t: TextBox,
@@ -286,7 +337,13 @@ function drawTextBox(
 ): void {
   const { first, lineHeight } = baselineOffsets(metrics, t.fontSize);
   const { r, g, b } = hexToRgb01(t.color);
-  const lines = t.text.split('\n');
+  const logical = t.text.split('\n');
+  const lines =
+    t.width !== undefined
+      ? logical.flatMap((l) =>
+          wrapLine(l, t.width!, (s) => font.widthOfTextAtSize(s, t.fontSize)),
+        )
+      : logical;
   for (let i = 0; i < lines.length; i++) {
     const line = lines[i];
     if (!line) continue;

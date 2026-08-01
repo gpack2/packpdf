@@ -75,6 +75,16 @@ export function showBanner(msg: string): void {
   uiState.patch({ banner: msg });
 }
 
+/**
+ * Ends any in-progress annotation edit by blurring the focused field, so its
+ * session commits synchronously. Needed wherever pointerdown handlers call
+ * preventDefault(), which suppresses the browser's native focus transfer.
+ */
+export function commitActiveEdit(): void {
+  const el = document.activeElement;
+  if (el instanceof HTMLElement && el !== document.body) el.blur();
+}
+
 /** Applies a style patch to the selected annotation (optionally kind-gated). */
 export function restyleSelection(
   patch: Partial<import('../types').Annotation>,

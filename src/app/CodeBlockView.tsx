@@ -30,7 +30,8 @@ import {
   type TokenLine,
 } from '../types';
 import { startDragMove } from './dragMove';
-import { history, select, store, uiState } from './state';
+import { startDragResize } from './resize';
+import { commitActiveEdit, history, select, store, uiState } from './state';
 
 /** github-light-adjacent colors so editing roughly matches Shiki's static view. */
 const cmHighlight = HighlightStyle.define([
@@ -171,16 +172,44 @@ export function CodeBlockView({
     if (tool === 'code') {
       e.stopPropagation();
       e.preventDefault();
+      commitActiveEdit();
       startDragMove(el, cb, e, beginEdit);
       return;
     }
     if (tool === 'select') {
       e.stopPropagation();
       e.preventDefault();
+      commitActiveEdit();
       select(cb.id);
       if (e.detail >= 2) beginEdit();
       else startDragMove(el, cb, e);
     }
+  };
+
+  // Corner drag scales the font size, so the PDF flattening (which derives
+  // the card size from fontSize) stays in lockstep with the screen.
+  const onResizeDown = (e: React.PointerEvent<HTMLDivElement>) => {
+    const el = rootRef.current;
+    if (!el || e.button !== 0) return;
+    e.stopPropagation();
+    e.preventDefault();
+    const z = uiState.get().zoom;
+    const startW = el.offsetWidth;
+    const scaleFor = (dx: number) =>
+      Math.max(4, Math.min(96, cb.fontSize * ((startW + dx) / startW))) / cb.fontSize;
+    startDragResize(e.currentTarget, e, {
+      onMove: (dx) => {
+        el.style.fontSize = `${cb.fontSize * scaleFor(dx) * z}px`;
+      },
+      onEnd: (dx, _dy, commit) => {
+        const size = cb.fontSize * scaleFor(dx);
+        el.style.fontSize = `${(commit ? size : cb.fontSize) * z}px`;
+        const cur = store.get(cb.id);
+        if (commit && cur?.kind === 'code' && size !== cur.fontSize) {
+          history.exec(updateCmd(store, cur, { ...cur, fontSize: size }));
+        }
+      },
+    });
   };
 
   return (
@@ -217,6 +246,9 @@ export function CodeBlockView({
             ))}
           </code>
         </pre>
+      )}
+      {selected && !editing && (
+        <div className="resize-handle se" title="Drag to resize" onPointerDown={onResizeDown} />
       )}
       {selected && !editing && (
         <select

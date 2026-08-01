@@ -90,4 +90,34 @@ describe('TextBoxView', () => {
     fireEvent.blur(ta);
     expect(store.get('t1')).toBeUndefined();
   });
+
+  it('renders soft-wrapping when a width is set, pre otherwise', () => {
+    store.add(box);
+    const { rerender } = render(<TextBoxView t={box} zoom={1} selected={false} />);
+    const ta = screen.getByRole('textbox') as HTMLTextAreaElement;
+    expect(ta.getAttribute('wrap')).toBe('off');
+    expect(ta.style.whiteSpace).toBe('pre');
+    rerender(<TextBoxView t={{ ...box, width: 120 }} zoom={1} selected={false} />);
+    expect(ta.getAttribute('wrap')).toBe('soft');
+    expect(ta.style.whiteSpace).toBe('pre-wrap');
+    expect(ta.style.width).toBe('120px');
+  });
+
+  it('commits a wrap width as one undo entry when the handle is dragged', () => {
+    store.add(box);
+    history.clear();
+    const { container } = render(<TextBoxView t={box} zoom={1} selected={true} />);
+    const handle = container.querySelector('.resize-handle') as HTMLElement;
+    expect(handle).not.toBeNull();
+
+    fireEvent.pointerDown(handle, { button: 0, clientX: 0, clientY: 0 });
+    fireEvent.pointerMove(handle, { clientX: 100, clientY: 0 });
+    fireEvent.pointerUp(handle, { clientX: 100, clientY: 0 });
+
+    // jsdom offsetWidth is 0, so the committed width is the raw 100px drag.
+    expect((store.get('t1') as TextBox).width).toBe(100);
+    expect(history.canUndo).toBe(true);
+    history.undo();
+    expect((store.get('t1') as TextBox).width).toBeUndefined();
+  });
 });
