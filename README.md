@@ -1,9 +1,8 @@
-# PackPDF
+# PackPDF - A fast, client-side, 100% vibecoded PDF editor that I use for my schoolwork
 
-A fast, client-side PDF annotation editor for schoolwork: open a PDF, add
-textboxes, freehand ink, syntax-highlighted code blocks, LaTeX math, and
-Excalidraw diagrams anywhere, then save an annotated copy. No server, no
-storage — everything stays in your browser. Built with React 19.
+Open a PDF, add textboxes, freehand ink, syntax-highlighted code blocks, 
+LaTeX math, and Excalidraw diagrams anywhere, then save an annotated copy. 
+No server, no storage — everything stays in your browser. Built with React 19.
 
 ## Usage
 
