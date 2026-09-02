@@ -1,4 +1,4 @@
-# PackPDF - A fast, client-side, 100% vibecoded PDF editor that I use for my schoolwork
+# PackPDF - A fast, client-side, vibecoded PDF editor that I use for my schoolwork
 
 Open a PDF, add textboxes, freehand ink, syntax-highlighted code blocks, 
 LaTeX math, and Excalidraw diagrams anywhere, then save an annotated copy. 
